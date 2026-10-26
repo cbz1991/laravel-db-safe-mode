@@ -4,6 +4,8 @@ All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
 ## Unreleased
 
+## 1.2.2 - 2026-10-26
+
 - Fix: on PostgreSQL, `Model::create()` / `insertGetId()` were not blocked,
   because Laravel runs them as `insert ... returning id` through
   `selectFromWriteConnection()`. Every query is now checked, whichever
