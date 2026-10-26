@@ -1,0 +1,52 @@
+{
+    "name": "cabuz/laravel-db-safe-mode",
+    "description": "Work with production data locally without fear: block outbound email, notifications, HTTP and queued side effects, make the connection read-only, and anonymize PII on the fly.",
+    "keywords": ["laravel", "production", "safety", "readonly", "anonymize", "pii", "debugging"],
+    "license": "MIT",
+    "homepage": "https://github.com/cbz1991/laravel-db-safe-mode",
+    "authors": [
+        {
+            "name": "Florin Cabuz",
+            "email": "florin.cabuz@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/cbz1991/laravel-db-safe-mode/issues",
+        "source": "https://github.com/cbz1991/laravel-db-safe-mode"
+    },
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0 || ^12.0",
+        "illuminate/database": "^11.0 || ^12.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0 || ^10.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Cabuz\\SafeMode\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Cabuz\\SafeMode\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Cabuz\\SafeMode\\SafeModeServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
