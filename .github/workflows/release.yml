@@ -1,0 +1,48 @@
+name: release
+
+on:
+  # Create the GitHub release automatically whenever a version tag is pushed.
+  push:
+    tags: ['v*']
+  # Run manually to create releases for any existing tags that don't have one.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create missing GitHub releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Oldest first, so the newest version ends up marked as "Latest".
+          for tag in $(git tag --list 'v*' --sort=v:refname); do
+            if gh release view "$tag" > /dev/null 2>&1; then
+              echo "Release $tag already exists, skipping."
+              continue
+            fi
+
+            # Release notes are the matching "## <version>" section of CHANGELOG.md.
+            version="${tag#v}"
+            awk -v v="$version" '
+              index($0, "## " v " ") == 1 || $0 == "## " v { found = 1; next }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md | sed '/./,$!d' > notes.md
+
+            if [ ! -s notes.md ]; then
+              echo "See [CHANGELOG.md](CHANGELOG.md) for details." > notes.md
+            fi
+
+            gh release create "$tag" --title "$tag" --notes-file notes.md --verify-tag
+            echo "Created release $tag."
+          done
