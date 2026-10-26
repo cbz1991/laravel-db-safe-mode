@@ -4,6 +4,7 @@ namespace Cabuz\SafeMode;
 
 use Cabuz\SafeMode\Commands\AnonymizeCommand;
 use Cabuz\SafeMode\Commands\StatusCommand;
+use Cabuz\SafeMode\Guards\CommandGuard;
 use Cabuz\SafeMode\Guards\OutboundGuard;
 use Cabuz\SafeMode\Guards\WriteGuard;
 use Cabuz\SafeMode\Masking\Maskers;
@@ -25,9 +26,10 @@ class SafeModeServiceProvider extends ServiceProvider
 
         // The write guard must be in place before any connection is resolved,
         // so register the resolvers as early as possible. Actual blocking is
-        // gated at query time by SafeMode::isActive(), which boot() sets — so
-        // installing the guarded connections here is always safe.
-        if (config('safe-mode.writes.block', true)) {
+        // gated at query time by SafeMode::blocksWrites(), which depends on the
+        // mode boot() picks — so installing the guarded connections is safe.
+        // (Older published configs can still switch it off with writes.block.)
+        if (config('safe-mode.writes.block', true) !== false) {
             WriteGuard::register();
         }
     }
@@ -52,12 +54,19 @@ class SafeModeServiceProvider extends ServiceProvider
         $guard = $this->app->make(SafeMode::class);
 
         $realData = $detector->hasRealData();
+        $mode = $detector->mode($realData);
+        $explicit = $detector->modeIsExplicit();
 
         $guard->engage(
-            $realData
-                ? 'real data detected in a non-production environment'
-                : 'non-production environment',
+            match (true) {
+                $explicit => "SAFE_MODE is set to {$mode}",
+                $realData => 'real data detected',
+                default => 'no real data detected',
+            },
             $realData,
+            $mode,
+            $detector->modeSettings($mode),
+            $explicit,
         );
 
         $this->registerGuards($guard);
@@ -93,7 +102,7 @@ class SafeModeServiceProvider extends ServiceProvider
      */
     protected function registerWriteAllowlist(SafeMode $guard): void
     {
-        if (! $this->app->runningInConsole() || ! config('safe-mode.writes.block', true)) {
+        if (! $this->app->runningInConsole() || ! $guard->blocksWrites()) {
             return;
         }
 
@@ -118,17 +127,9 @@ class SafeModeServiceProvider extends ServiceProvider
 
     protected function registerGuards(SafeMode $guard): void
     {
-        $outbound = new OutboundGuard($this->app, config('safe-mode.outbound', []));
+        (new OutboundGuard($this->app, config('safe-mode.outbound', [])))->register();
 
-        $outbound->register();
-
-        if (config('safe-mode.queue.halt', true)) {
-            $outbound->registerQueueHalt();
-        }
-
-        if (config('safe-mode.scheduler.halt', true)) {
-            $outbound->registerSchedulerHalt();
-        }
+        CommandGuard::register($this->app['events'], $guard);
     }
 
     protected function registerConsoleBanner(): void
@@ -141,16 +142,27 @@ class SafeModeServiceProvider extends ServiceProvider
             /** @var SafeMode $guard */
             $guard = $this->app->make(SafeMode::class);
 
-            // Don't clutter our own status output.
-            if (str_starts_with((string) $event->command, 'safe-mode:')) {
+            // Stay quiet on everyday local data, and don't clutter our own output.
+            if ((! $guard->isRealData() && ! $guard->isExplicitMode())
+                || str_starts_with((string) $event->command, 'safe-mode:')) {
                 return;
             }
 
-            $label = $guard->isRealData() ? 'REAL DATA' : 'safe-mode';
-            $event->output->writeln(
-                "<bg=red;fg=white;options=bold> {$label} </> <fg=yellow>guard engaged — writes & outbound side effects are blocked</>"
-            );
+            $event->output->writeln(static::bannerFor($guard));
         });
+    }
+
+    public static function bannerFor(SafeMode $guard): string
+    {
+        $label = strtoupper($guard->mode()).' MODE'.($guard->isRealData() ? ' on REAL DATA' : '');
+
+        $state = fn (bool $blocked, string $what) => $blocked ? "{$what} blocked" : "<options=bold>{$what} ALLOWED</>";
+
+        return "<bg=red;fg=white;options=bold> {$label} </> <fg=yellow>"
+            .$state($guard->blocksWrites(), 'writes').', '
+            .$state($guard->haltsQueue(), 'queue workers').', '
+            .$state($guard->haltsScheduler(), 'scheduler')
+            .'; mail, notifications & HTTP guarded</>';
     }
 
     protected function detector(): Detector

@@ -4,6 +4,30 @@ All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
 ## Unreleased
 
+## 1.3.0 - 2026-10-26
+
+- New: `strict` and `debug` modes, chosen with `SAFE_MODE` in `.env`.
+  `strict` blocks writes, queue workers, the scheduler and outbound side
+  effects. `debug` lets writes and the queue workers you start by hand run, so
+  a bug can be reproduced on a production clone, while mail, notifications and
+  HTTP stay blocked and the scheduler stays off. Each mode's settings are
+  configurable under `modes`.
+- Changed: without `SAFE_MODE`, the mode follows the data: `strict` when real
+  data is detected, `debug` otherwise. Everyday local development on seeded
+  data is no longer blocked (previously every write and the queue worker were
+  blocked in any non-production environment).
+- Changed: queue workers and the scheduler are now refused when their command
+  starts (`queue:work`, `queue:listen`, `horizon`, `schedule:run`,
+  `schedule:work`), which also covers `queue:work --once`. Previously only the
+  `queue:work` loop was paused. New `QueueHaltedException`.
+- Changed: PII masking only applies when real data is detected or `SAFE_MODE`
+  is set.
+- `safe-mode:status` and the console banner show the mode and what is blocked
+  or allowed; the banner only appears on real data or when `SAFE_MODE` is set.
+- The `writes.block`, `queue.halt` and `scheduler.halt` config keys are
+  replaced by `modes`; in configs published earlier, setting them to `false`
+  still turns that guard off.
+
 ## 1.2.3 - 2026-10-26
 
 - Fix: the package crashed with a PHP fatal error on MySQL and MariaDB with

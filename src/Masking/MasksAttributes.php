@@ -5,7 +5,8 @@ namespace Cabuz\SafeMode\Masking;
 use Cabuz\SafeMode\Support\SafeMode;
 
 /**
- * Add to an Eloquent model to mask PII on read while the guard is engaged.
+ * Add to an Eloquent model to mask PII on read when real data is detected or
+ * SAFE_MODE is set.
  *
  * The real value is kept privately and restored before any write, so a stray
  * $model->save() can never persist a fake address back to the database.
@@ -59,7 +60,7 @@ trait MasksAttributes
     {
         $guard = app(SafeMode::class);
 
-        if (! $guard->isActive() || ! config('safe-mode.masking.enabled', true)) {
+        if (! $guard->masksData() || ! config('safe-mode.masking.enabled', true)) {
             return;
         }
 

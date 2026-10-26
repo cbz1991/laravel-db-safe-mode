@@ -3,20 +3,17 @@
 namespace Cabuz\SafeMode\Guards;
 
 use Cabuz\SafeMode\Exceptions\OutboundBlockedException;
-use Cabuz\SafeMode\Exceptions\SchedulerHaltedException;
 use GuzzleHttp\Middleware;
-use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Notifications\Events\NotificationSending;
-use Illuminate\Queue\Events\Looping;
 use Symfony\Component\Mime\Address;
 
 /**
- * Stops every side effect that could reach the outside world while real data
- * is in use. Each guard is independently toggled through config.
+ * Stops every side effect that could reach the outside world, in every mode.
+ * Each guard is independently toggled through config.
  */
 class OutboundGuard
 {
@@ -43,25 +40,6 @@ class OutboundGuard
         if (data_get($this->config, 'http.block', true) && class_exists(Middleware::class)) {
             $this->guardHttp();
         }
-    }
-
-    public function registerQueueHalt(): void
-    {
-        /** @var Dispatcher $events */
-        $events = $this->app['events'];
-
-        // Pauses the daemon worker (queue:work) before it pulls a job.
-        $events->listen(Looping::class, fn () => false);
-    }
-
-    public function registerSchedulerHalt(): void
-    {
-        /** @var Dispatcher $events */
-        $events = $this->app['events'];
-
-        $events->listen(ScheduledTaskStarting::class, function () {
-            throw SchedulerHaltedException::make();
-        });
     }
 
     /**

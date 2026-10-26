@@ -56,6 +56,62 @@ class DetectorTest extends TestCase
         $this->assertFalse($this->detector()->hasRealData());
     }
 
+    public function test_without_safe_mode_the_mode_follows_the_data(): void
+    {
+        config(['safe-mode.mode' => null]);
+
+        $this->assertSame('strict', $this->detector()->mode(realData: true));
+        $this->assertSame('debug', $this->detector()->mode(realData: false));
+        $this->assertFalse($this->detector()->modeIsExplicit());
+    }
+
+    public function test_safe_mode_overrides_the_data(): void
+    {
+        config(['safe-mode.mode' => 'debug']);
+        $this->assertSame('debug', $this->detector()->mode(realData: true));
+
+        config(['safe-mode.mode' => 'STRICT']);
+        $this->assertSame('strict', $this->detector()->mode(realData: false));
+        $this->assertTrue($this->detector()->modeIsExplicit());
+    }
+
+    public function test_an_unknown_mode_falls_back_to_strict(): void
+    {
+        config(['safe-mode.mode' => 'yolo']);
+
+        $this->assertSame('strict', $this->detector()->mode(realData: false));
+    }
+
+    public function test_mode_settings_can_be_customised(): void
+    {
+        config(['safe-mode.modes.debug.halt_scheduler' => false]);
+
+        $this->assertSame(
+            ['block_writes' => false, 'halt_queue' => false, 'halt_scheduler' => false],
+            $this->detector()->modeSettings('debug')
+        );
+        $this->assertSame(
+            ['block_writes' => true, 'halt_queue' => true, 'halt_scheduler' => true],
+            $this->detector()->modeSettings('strict')
+        );
+    }
+
+    /** Older published configs have global switches and no "modes" key. */
+    public function test_legacy_global_switches_still_turn_guards_off(): void
+    {
+        config([
+            'safe-mode.modes' => null,
+            'safe-mode.writes.block' => false,
+            'safe-mode.queue' => ['halt' => false],
+            'safe-mode.scheduler' => ['halt' => true],
+        ]);
+
+        $this->assertSame(
+            ['block_writes' => false, 'halt_queue' => false, 'halt_scheduler' => true],
+            $this->detector()->modeSettings('strict')
+        );
+    }
+
     public function test_a_missing_table_is_not_real_data(): void
     {
         config(['safe-mode.detect_real_data.table' => 'does_not_exist']);

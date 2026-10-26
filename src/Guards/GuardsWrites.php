@@ -7,11 +7,11 @@ use Cabuz\SafeMode\Support\SafeMode;
 use Closure;
 
 /**
- * Overrides the write entry points on a database Connection so that, while
- * the guard is engaged, any mutation throws unless explicitly allowed.
+ * Checks every query a database Connection runs so that, when the current
+ * mode blocks writes, any mutation throws unless explicitly allowed.
  *
- * Reads pass through. Every query is also checked in run(), so a write sent
- * through a read method (e.g. PostgreSQL's "insert ... returning id" via
+ * Reads pass through. Because the check sits in run(), a write sent through a
+ * read method (e.g. PostgreSQL's "insert ... returning id" via
  * selectFromWriteConnection()) is caught too. Intentional writes go through
  * SafeMode::allowWrites(). This is the piece that stops a forgotten job or
  * cron from flipping a flag on a real user.
@@ -27,7 +27,7 @@ trait GuardsWrites
     {
         $guard = $this->safeMode();
 
-        if (! $guard->isActive() || $guard->writesAreAllowed()) {
+        if (! $guard->blocksWrites() || $guard->writesAreAllowed()) {
             return;
         }
 

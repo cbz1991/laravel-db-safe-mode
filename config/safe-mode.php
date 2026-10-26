@@ -30,13 +30,47 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Real-data detection (defense in depth)
+    | Mode
     |--------------------------------------------------------------------------
     |
-    | Even in local/staging you may have imported a production dump and
-    | forgotten. On boot the package peeks at one column and, if the values
-    | do NOT look anonymized, it treats the data as real and clamps down hard
-    | (writes blocked, outbound blocked, loud banner) regardless of settings.
+    | "strict": block everything — database writes, queue workers, the
+    |           scheduler, and outbound mail / notifications / HTTP.
+    | "debug":  let writes and the queue workers you start by hand run, so you
+    |           can reproduce a bug on a production clone; outbound mail,
+    |           notifications and HTTP stay blocked, and the scheduler stays off.
+    |
+    | null (the default) decides from the data: "strict" when real data is
+    | detected, "debug" otherwise, so everyday local development isn't
+    | blocked. An unknown value falls back to "strict".
+    |
+    | Careful: "debug" allows writes on whatever database you're connected to.
+    | Don't leave it on when you connect to the live production database.
+    |
+    */
+
+    'mode' => env('SAFE_MODE'),
+
+    'modes' => [
+        'strict' => [
+            'block_writes' => true,
+            'halt_queue' => true,      // refuse queue:work, queue:listen, horizon
+            'halt_scheduler' => true,  // refuse schedule:run, schedule:work
+        ],
+        'debug' => [
+            'block_writes' => false,
+            'halt_queue' => false,
+            'halt_scheduler' => true,  // nothing should run behind your back
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Real-data detection
+    |--------------------------------------------------------------------------
+    |
+    | On boot the package peeks at one column. If any value is not at an
+    | anonymized domain, the data is treated as real: "strict" mode is used
+    | unless SAFE_MODE says otherwise, PII is masked and a red banner is shown.
     |
     */
 
@@ -55,18 +89,14 @@ return [
     | Database write protection
     |--------------------------------------------------------------------------
     |
-    | Make the guarded connections read-only at the PDO layer. Any
-    | insert/update/delete/raw-statement throws a WriteBlockedException.
-    | This is what stops that forgotten job from flipping a flag on a real
-    | user. Wrap intentional writes in SafeMode::allowWrites(fn () => ...).
+    | When the mode blocks writes, any insert/update/delete throws a
+    | WriteBlockedException. This is what stops that forgotten job from
+    | flipping a flag on a real user. Wrap intentional writes in
+    | SafeMode::allowWrites(fn () => ...).
     |
     */
 
     'writes' => [
-        'block' => true,
-        // null = guard every connection; or list connection names.
-        'connections' => null,
-
         // Framework/infrastructure tables whose writes are always permitted.
         // These never hold real-user PII, and blocking them would break
         // migrations, the queue, cache and sessions. Your domain tables
@@ -96,7 +126,8 @@ return [
     | Outbound side effects
     |--------------------------------------------------------------------------
     |
-    | Nothing leaves the building. Each guard can be toggled independently.
+    | Nothing leaves the building, in every mode. Each guard can be toggled
+    | independently.
     |
     */
 
@@ -125,31 +156,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Queue & scheduler
-    |--------------------------------------------------------------------------
-    |
-    | "halt" prevents queued jobs and scheduled commands from running at all
-    | while real data is present, so nothing fires behind your back. Run the
-    | one job you care about by hand instead.
-    |
-    */
-
-    'queue' => [
-        'halt' => true,
-    ],
-
-    'scheduler' => [
-        'halt' => true,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | On-the-fly masking (read side)
     |--------------------------------------------------------------------------
     |
-    | Applied to Eloquent models using the MasksAttributes trait. Values are
-    | masked when read and the original is restored before save, so a stray
-    | save() can never persist a fake address back to production.
+    | Applied to Eloquent models using the MasksAttributes trait, when real
+    | data is detected or SAFE_MODE is set. Values are masked when read and
+    | the original is restored before save, so a stray save() can never
+    | persist a fake address back to production.
     |
     */
 
@@ -169,7 +182,9 @@ return [
     */
 
     'banner' => [
-        'console' => true, // print a warning before every artisan command
+        // Print the mode before every artisan command when real data is
+        // detected or SAFE_MODE is set.
+        'console' => true,
     ],
 
 ];

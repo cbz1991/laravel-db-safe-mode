@@ -15,17 +15,18 @@ fires and emails a real customer — or flips a flag on a real user?*
 This package makes that impossible by default. In any non-production
 environment it:
 
-- **Blocks database writes** at the connection layer — a stray
-  `$user->update(['is_premium' => true])` throws instead of persisting.
-- **Blocks outbound side effects** — mail, notifications and unexpected HTTP
-  calls are redirected or refused.
-- **Halts the queue worker and scheduler** while real data is present, so
-  nothing runs behind your back.
+- **Blocks outbound side effects**, always: mail, notifications and
+  unexpected HTTP calls are redirected or refused, so no real person hears
+  from your machine.
+- **Detects real data automatically**, even if you imported a dump and forgot.
+- **Blocks database writes and stops queue workers and the scheduler** on real
+  data, so a stray `$user->update(['is_premium' => true])` throws instead of
+  persisting — unless you switch to debug mode to reproduce a bug.
 - **Masks PII on read** (emails, phones, …) and never lets the fake value be
   written back.
-- **Detects real data automatically** — even if you imported a dump and forgot.
 
-It engages itself; you don't have to remember to turn it on.
+It engages itself; you don't have to remember to turn it on. On everyday
+local data (seeded with factories) it stays out of your way.
 
 ## Requirements
 
@@ -47,25 +48,56 @@ discovered there. As a second line of defence it also disables itself in the
 `production` environment. It is **off in `production`** and **on everywhere
 else**.
 
-## The three scenarios it's built for
+## Modes
 
-**1. You connect your local app to the production DB.**
-Reads work normally. Any write throws a `WriteBlockedException`. Mail,
-notifications and stray HTTP calls are blocked. The queue worker refuses to
-process jobs.
+| | `strict` | `debug` |
+|---|---|---|
+| Database writes | blocked | **allowed** |
+| Queue workers you start (`queue:work`, `queue:listen`, `horizon`) | refused | **allowed** |
+| Scheduler (`schedule:run`, `schedule:work`) | refused | refused |
+| Mail | redirected or blocked | redirected or blocked |
+| Notifications (SMS, Slack, …) | blocked | blocked |
+| Outbound HTTP | blocked (allowlist) | blocked (allowlist) |
 
-**2. You import a production dump locally and forget it's real.**
-On boot the package peeks at one column (`users.email` by default). If any
-value isn't at an anonymized domain (`example.com`, `example.org` or
-`example.net` by default, which covers Laravel's `UserFactory`) it treats the
-data as real, clamps down hard, and prints a red `REAL DATA` banner before
-every artisan command.
+Pick one in `.env`:
 
-**3. A job/cron flips a flag on a user without sending any email.**
-This is the subtle one. There's no outbound signal to catch — it's a silent
-DB write. The connection-level write guard stops it dead.
+```env
+SAFE_MODE=debug                 # or strict
+SAFE_MODE_MAIL_TO=you@company.com
+```
 
-## Running the write you *do* mean to
+When `SAFE_MODE` is not set, the data decides: **strict** if real data is
+detected, **debug** otherwise. Every row of the table can be changed per mode
+in `config/safe-mode.php`.
+
+Real data is detected on boot by peeking at one column (`users.email` by
+default): if any value isn't at an anonymized domain (`example.com`,
+`example.org` or `example.net`, which covers Laravel's `UserFactory`), the data
+is treated as real and a red banner is printed before every artisan command.
+
+> **Careful:** `debug` allows writes on whatever database you're connected to.
+> Don't leave it on when you connect to the live production database — the
+> banner (`DEBUG MODE on REAL DATA … writes ALLOWED`) is there to remind you.
+
+## Scenarios
+
+**1. You connect your local app to the live production DB.**
+Leave `SAFE_MODE` unset (or set it to `strict`). Reads work normally; any
+write throws a `WriteBlockedException`; queue workers and the scheduler refuse
+to start; mail, notifications and stray HTTP calls are blocked.
+
+**2. You clone production to debug a bug you can't reproduce.**
+Say renewal emails aren't sent and a flag isn't set. Set `SAFE_MODE=debug` and
+`SAFE_MODE_MAIL_TO=you@company.com`, then run the job by hand
+(`php artisan queue:work --once`). It can write to your clone, so you can see
+whether the flag gets set — but every email lands in your inbox, and SMS,
+Slack or payment calls are blocked.
+
+**3. You import a dump and forget it's real.**
+With `SAFE_MODE` unset, real data means strict mode: a forgotten job, cron or
+listener can't write, and nothing leaves the building.
+
+## Running the write you *do* mean to (strict mode)
 
 ```php
 use Cabuz\SafeMode\Facades\SafeMode;
@@ -81,7 +113,8 @@ Migrations, seeding and framework tables (`migrations`, `jobs`, `cache`,
 
 ## Masking PII
 
-Add the trait to a model and declare what to mask:
+When real data is detected or `SAFE_MODE` is set, models using the trait show
+masked values. Add it to a model and declare what to mask:
 
 ```php
 use Cabuz\SafeMode\Masking\MasksAttributes;
@@ -116,22 +149,23 @@ to run in a production environment.
 php artisan safe-mode:status
 ```
 
-Shows whether the guard is engaged, whether real data was detected, and what is
-currently blocked.
+Shows the mode, whether real data was detected, and what is currently blocked
+or allowed.
 
 ## How it works
 
 - **Writes:** guarded `Connection` subclasses registered via
-  `Connection::resolverFor()` override every write entry point and throw unless
-  the target is an allowlisted infrastructure table or writes are explicitly
-  permitted. Reads are untouched.
-- **Mail:** `Mailer::alwaysTo()` redirects to one inbox, or the `log` transport
-  is forced.
+  `Connection::resolverFor()` check every query in `run()` and throw on writes
+  unless the target is an allowlisted infrastructure table or writes are
+  explicitly permitted. Reads are untouched.
+- **Mail:** a `MessageSending` listener redirects every message, on every
+  mailer, to one inbox, or cancels it and logs the recipients.
 - **Notifications:** a `NotificationSending` listener drops channels that reach
   real people.
 - **HTTP:** a global request middleware throws on any host not allowlisted.
-- **Queue:** a `Looping` listener pauses the daemon worker.
-- **Scheduler:** a `ScheduledTaskStarting` listener aborts `schedule:run`.
+- **Queue & scheduler:** a `CommandStarting` listener refuses `queue:work`,
+  `queue:listen`, `horizon`, `schedule:run` and `schedule:work` when the mode
+  halts them.
 
 ## Octane & long-lived workers
 
@@ -139,8 +173,8 @@ On Octane the worker process is reused across many requests, so transient state
 must not leak between them. The package resets its write-permission state at the
 start of every Octane request, task and tick (listening by event name, so
 `laravel/octane` is not a dependency). The environment-derived state — whether
-the guard is engaged and whether real data is present — is preserved, since it
-doesn't change within a worker's lifetime.
+the guard is engaged, its mode, and whether real data is present — is
+preserved, since it doesn't change within a worker's lifetime.
 
 The guarded connection resolvers are registered on the `Connection` class
 itself, so they survive Octane recycling connections between requests.

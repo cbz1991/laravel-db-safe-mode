@@ -5,6 +5,7 @@ namespace Cabuz\SafeMode\Tests;
 use Cabuz\SafeMode\SafeModeServiceProvider;
 use Cabuz\SafeMode\Support\SafeMode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\WithConsoleEvents;
 use Illuminate\Support\Facades\DB;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -14,6 +15,10 @@ abstract class TestCase extends Orchestra
     // databases (MySQL, MariaDB, PostgreSQL in CI) start clean every time.
     use RefreshDatabase;
 
+    // Laravel doesn't fire CommandStarting/CommandFinished in unit tests by
+    // default; real `php artisan` runs do, and the command guards rely on them.
+    use WithConsoleEvents;
+
     protected function getPackageProviders($app): array
     {
         return [SafeModeServiceProvider::class];
@@ -21,8 +26,11 @@ abstract class TestCase extends Orchestra
 
     protected function defineEnvironment($app): void
     {
-        // Non-production so the guard engages.
+        // Non-production so the guard engages, in strict mode unless a test
+        // says otherwise (the test database is empty at boot, which would
+        // otherwise pick debug mode).
         $app['config']->set('app.env', 'local');
+        $app['config']->set('safe-mode.mode', 'strict');
 
         $app['config']->set('database.default', 'testing');
         $app['config']->set('database.connections.testing', $this->databaseConnectionConfig());

@@ -2,17 +2,20 @@
 
 namespace Cabuz\SafeMode\Tests;
 
+use Cabuz\SafeMode\Exceptions\QueueHaltedException;
 use Cabuz\SafeMode\Exceptions\SchedulerHaltedException;
 use Illuminate\Console\Scheduling\Schedule;
-use Illuminate\Queue\Events\Looping;
 use Illuminate\Support\Facades\Artisan;
 
+/** Strict mode (the TestCase default). */
 class QueueAndSchedulerTest extends TestCase
 {
-    public function test_the_queue_worker_is_paused(): void
+    public function test_queue_workers_are_refused(): void
     {
-        // queue:work stops pulling jobs when a Looping listener returns false.
-        $this->assertFalse($this->app['events']->until(new Looping('database', 'default')));
+        $this->expectException(QueueHaltedException::class);
+
+        // --once never enters the worker loop, so it must be stopped up front.
+        Artisan::call('queue:work', ['--once' => true, '--sleep' => 0]);
     }
 
     public function test_scheduled_tasks_do_not_run(): void
