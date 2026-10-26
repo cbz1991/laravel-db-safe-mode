@@ -1,5 +1,10 @@
 # laravel-db-safe-mode
 
+[![tests](https://github.com/cbz1991/laravel-db-safe-mode/actions/workflows/tests.yml/badge.svg)](https://github.com/cbz1991/laravel-db-safe-mode/actions/workflows/tests.yml)
+[![Latest Version](https://img.shields.io/packagist/v/cabuz/laravel-db-safe-mode)](https://packagist.org/packages/cabuz/laravel-db-safe-mode)
+[![Total Downloads](https://img.shields.io/packagist/dt/cabuz/laravel-db-safe-mode)](https://packagist.org/packages/cabuz/laravel-db-safe-mode)
+[![License](https://img.shields.io/packagist/l/cabuz/laravel-db-safe-mode)](LICENSE)
+
 Work with **production data locally without fear**.
 
 When you copy a production dump onto your machine, or connect your local app
