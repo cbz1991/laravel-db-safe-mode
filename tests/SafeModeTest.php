@@ -82,6 +82,40 @@ class SafeModeTest extends TestCase
         );
     }
 
+    /** Octane: a leaked write permission must not survive into the next request. */
+    public function test_octane_request_resets_leaked_write_permission(): void
+    {
+        $user = $this->seedUser();
+        $guard = $this->app->make(SafeMode::class);
+
+        // Simulate an unbalanced push (the kind of leak a long-lived worker
+        // could otherwise carry from a previous request).
+        $guard->pushAllowWrites();
+        $this->assertTrue($guard->writesAreAllowed());
+
+        // A fresh Octane request wipes the transient state.
+        event('Laravel\Octane\Events\RequestReceived');
+        $this->assertFalse($guard->writesAreAllowed());
+
+        // ...and the guard is fully effective again.
+        $this->expectException(WriteBlockedException::class);
+        $user->is_premium = true;
+        $user->save();
+    }
+
+    public function test_octane_task_and_tick_also_reset(): void
+    {
+        $guard = $this->app->make(SafeMode::class);
+
+        $guard->pushAllowWrites();
+        event('Laravel\Octane\Events\TaskReceived');
+        $this->assertFalse($guard->writesAreAllowed());
+
+        $guard->pushAllowWrites();
+        event('Laravel\Octane\Events\TickReceived');
+        $this->assertFalse($guard->writesAreAllowed());
+    }
+
     public function test_outbound_http_is_blocked(): void
     {
         $this->expectException(\Cabuz\SafeMode\Exceptions\OutboundBlockedException::class);

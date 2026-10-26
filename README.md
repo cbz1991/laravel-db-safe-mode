@@ -121,6 +121,21 @@ currently blocked.
 - **Queue:** a `Looping` listener pauses the daemon worker.
 - **Scheduler:** a `ScheduledTaskStarting` listener aborts `schedule:run`.
 
+## Octane & long-lived workers
+
+On Octane the worker process is reused across many requests, so transient state
+must not leak between them. The package resets its write-permission state at the
+start of every Octane request, task and tick (listening by event name, so
+`laravel/octane` is not a dependency). The environment-derived state — whether
+the guard is engaged and whether real data is present — is preserved, since it
+doesn't change within a worker's lifetime.
+
+The guarded connection resolvers are registered on the `Connection` class
+itself, so they survive Octane recycling connections between requests.
+
+`allowWrites()` is request-scoped and uses `try/finally`, so it always releases
+its permission even when the wrapped code throws.
+
 ## Configuration
 
 Every guard is independently toggleable in `config/safe-mode.php`. See the

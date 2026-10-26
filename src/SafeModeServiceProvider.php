@@ -64,6 +64,28 @@ class SafeModeServiceProvider extends ServiceProvider
         $this->registerGuards($guard);
         $this->registerConsoleBanner();
         $this->registerWriteAllowlist($guard);
+        $this->registerStateResets($guard);
+    }
+
+    /**
+     * On long-lived runtimes (Octane) the worker process is reused across many
+     * requests, tasks and ticks. Wipe the transient write-permission state at
+     * the start of each unit of work so it can never leak between them.
+     *
+     * Listeners are registered by event name, so laravel/octane does not need
+     * to be installed; if it never fires these events, nothing happens.
+     */
+    protected function registerStateResets(SafeMode $guard): void
+    {
+        $events = $this->app['events'];
+
+        foreach ([
+            'Laravel\Octane\Events\RequestReceived',
+            'Laravel\Octane\Events\TaskReceived',
+            'Laravel\Octane\Events\TickReceived',
+        ] as $event) {
+            $events->listen($event, fn () => $guard->reset());
+        }
     }
 
     /**
