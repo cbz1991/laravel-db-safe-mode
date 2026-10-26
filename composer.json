@@ -25,6 +25,9 @@
         "orchestra/testbench": "^8.0 || ^9.0 || ^10.0 || ^11.0",
         "phpunit/phpunit": "^10.5 || ^11.0"
     },
+    "suggest": {
+        "guzzlehttp/guzzle": "Required for the HTTP guard on Laravel 10 (bundled with Laravel 11+)."
+    },
     "autoload": {
         "psr-4": {
             "Cabuz\\SafeMode\\": "src/"

@@ -146,6 +146,14 @@ its permission even when the wrapped code throws.
 Every guard is independently toggleable in `config/safe-mode.php`. See the
 inline comments there.
 
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for
+the development setup, the support matrix and the pull request guidelines.
+
+Found a way around one of the guards? Please report it privately — see
+[SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT

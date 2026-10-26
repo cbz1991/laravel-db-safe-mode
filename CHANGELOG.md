@@ -2,6 +2,13 @@
 
 All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
+## Unreleased
+
+- Add contributing guide, security policy, code of conduct, and issue / pull
+  request templates.
+- Suggest `guzzlehttp/guzzle` in `composer.json` (needed for the HTTP guard on
+  Laravel 10, bundled with Laravel 11+).
+
 ## 1.2.1 - 2026-10-26
 
 - Support PHP 8.1 - 8.5 and Laravel 10 - 13.

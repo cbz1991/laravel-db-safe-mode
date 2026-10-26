@@ -1,0 +1,78 @@
+name: Bug report
+description: Something doesn't work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! If a guarded write, email, notification or
+        HTTP request **gets through** while the package is engaged, please report
+        it privately through the Security tab instead — see SECURITY.md.
+
+  - type: input
+    id: package-version
+    attributes:
+      label: Package version
+      placeholder: "e.g. 1.2.1"
+    validations:
+      required: true
+
+  - type: input
+    id: laravel-version
+    attributes:
+      label: Laravel version
+      placeholder: "e.g. 12.30.0"
+    validations:
+      required: true
+
+  - type: input
+    id: php-version
+    attributes:
+      label: PHP version
+      placeholder: "e.g. 8.3.12"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database driver
+      options:
+        - MySQL
+        - MariaDB
+        - PostgreSQL
+        - SQLite
+        - SQL Server
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest code or config that reproduces the problem.
+      render: php
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant configuration
+      description: The parts of `config/safe-mode.php` you changed, if any.
+      render: php
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: Stack traces or log lines, if any.
+      render: shell
