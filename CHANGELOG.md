@@ -2,6 +2,14 @@
 
 All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
+## 1.2.0 - 2026-10-26
+
+- Add Laravel 13 support (`illuminate/*: ^13.0`, testbench `^11.0`).
+- Fix CI: resolve the testbench version from the package constraints instead of
+  injecting it from the matrix (the injection broke dependency installation on
+  the Laravel 11 jobs), update dependencies with `--with-all-dependencies`, and
+  authenticate Composer to avoid GitHub API rate limits.
+
 ## 1.1.0 - 2026-10-26
 
 - Octane & long-lived worker support: reset the transient write-permission
