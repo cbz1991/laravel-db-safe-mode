@@ -2,6 +2,15 @@
 
 All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
+## 1.2.1 - 2026-10-26
+
+- Support PHP 8.1 - 8.5 and Laravel 10 - 13.
+- Fix a crash on boot for apps without Guzzle (Laravel 10 does not require it):
+  the HTTP guard is now only registered when Guzzle is installed.
+- Fix CI: allow end-of-life Laravel releases that have security advisories to be
+  installed (Composer 2.9+ blocks them by default), and test every officially
+  supported PHP / Laravel combination.
+
 ## 1.2.0 - 2026-10-26
 
 - Add Laravel 13 support (`illuminate/*: ^13.0`, testbench `^11.0`).

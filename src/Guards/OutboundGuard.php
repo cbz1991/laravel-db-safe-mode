@@ -4,8 +4,6 @@ namespace Cabuz\SafeMode\Guards;
 
 use Cabuz\SafeMode\Exceptions\OutboundBlockedException;
 use Cabuz\SafeMode\Exceptions\SchedulerHaltedException;
-use GuzzleHttp\Promise\Create;
-use GuzzleHttp\Psr7\Response;
 use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
@@ -35,7 +33,9 @@ class OutboundGuard
             $this->guardNotifications();
         }
 
-        if (data_get($this->config, 'http.block', true)) {
+        // Laravel 10 only suggests Guzzle. Without it the app can't make
+        // Http:: calls anyway, so there is nothing to guard.
+        if (data_get($this->config, 'http.block', true) && class_exists(\GuzzleHttp\Middleware::class)) {
             $this->guardHttp();
         }
     }

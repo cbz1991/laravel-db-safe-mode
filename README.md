@@ -22,6 +22,11 @@ environment it:
 
 It engages itself; you don't have to remember to turn it on.
 
+## Requirements
+
+- PHP 8.1 - 8.5
+- Laravel 10, 11, 12 or 13
+
 ## Installation
 
 This is a **development-only** tool — install it as a dev dependency:
