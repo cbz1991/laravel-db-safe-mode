@@ -2,6 +2,11 @@
 
 All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
+## 1.0.1 - 2026-10-26
+
+- Drop `minimum-stability: dev` now that a stable release is tagged; the
+  package resolves against stable dependencies by default.
+
 ## 1.0.0 - 2026-10-26
 
 Initial release.
