@@ -4,6 +4,7 @@ namespace Cabuz\SafeMode\Guards;
 
 use Cabuz\SafeMode\Exceptions\OutboundBlockedException;
 use Cabuz\SafeMode\Exceptions\SchedulerHaltedException;
+use GuzzleHttp\Middleware;
 use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
@@ -12,7 +13,6 @@ use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Queue\Events\Looping;
 use Symfony\Component\Mime\Address;
-use Symfony\Component\Mime\Email;
 
 /**
  * Stops every side effect that could reach the outside world while real data
@@ -20,6 +20,9 @@ use Symfony\Component\Mime\Email;
  */
 class OutboundGuard
 {
+    /**
+     * @param  array<string, mixed>  $config  the safe-mode.outbound config
+     */
     public function __construct(
         protected Application $app,
         protected array $config,
@@ -37,7 +40,7 @@ class OutboundGuard
 
         // Laravel 10 only suggests Guzzle. Without it the app can't make
         // Http:: calls anyway, so there is nothing to guard.
-        if (data_get($this->config, 'http.block', true) && class_exists(\GuzzleHttp\Middleware::class)) {
+        if (data_get($this->config, 'http.block', true) && class_exists(Middleware::class)) {
             $this->guardHttp();
         }
     }
@@ -74,10 +77,6 @@ class OutboundGuard
 
         $events->listen(MessageSending::class, function (MessageSending $event) use ($redirectTo) {
             $message = $event->message;
-
-            if (! $message instanceof Email) {
-                return false;
-            }
 
             $recipients = array_map(
                 fn (Address $address) => $address->getAddress(),

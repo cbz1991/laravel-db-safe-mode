@@ -1,0 +1,9 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - src
+        # The fixture model uses the MasksAttributes trait, so the trait gets analysed.
+        - tests/Fixtures

@@ -13,6 +13,7 @@ class User extends Model
 
     public $timestamps = true;
 
+    /** @var array<string, string> */
     protected array $maskedAttributes = [
         'email' => 'email',
     ];

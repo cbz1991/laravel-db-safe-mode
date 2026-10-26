@@ -18,7 +18,11 @@ use Cabuz\SafeMode\Support\SafeMode;
  */
 trait MasksAttributes
 {
-    /** Original values, keyed by attribute, captured before masking. */
+    /**
+     * Original values, keyed by attribute, captured before masking.
+     *
+     * @var array<string, mixed>
+     */
     protected array $safeModeOriginals = [];
 
     public static function bootMasksAttributes(): void
@@ -38,13 +42,17 @@ trait MasksAttributes
         });
     }
 
+    /**
+     * The model's own $maskedAttributes, if it declares any, else the config.
+     *
+     * @return array<string, string|\Closure>
+     */
     protected function safeModeMaskMap(): array
     {
-        if (! empty($this->maskedAttributes ?? [])) {
-            return $this->maskedAttributes;
-        }
+        // Optional property: models may declare $maskedAttributes or rely on config.
+        $map = (array) (get_object_vars($this)['maskedAttributes'] ?? []);
 
-        return (array) config('safe-mode.masking.attributes', []);
+        return $map !== [] ? $map : (array) config('safe-mode.masking.attributes', []);
     }
 
     public function applySafeModeMasks(): void

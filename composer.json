@@ -1,7 +1,7 @@
 {
     "name": "cabuz/laravel-db-safe-mode",
     "description": "Work with production data locally without fear: block outbound email, notifications, HTTP and queued side effects, make the connection read-only, and anonymize PII on the fly.",
-    "keywords": ["laravel", "production", "safety", "readonly", "anonymize", "pii", "debugging"],
+    "keywords": ["laravel", "dev", "production", "safety", "readonly", "anonymize", "pii", "debugging"],
     "license": "MIT",
     "homepage": "https://github.com/cbz1991/laravel-db-safe-mode",
     "authors": [
@@ -22,6 +22,8 @@
     },
     "require-dev": {
         "guzzlehttp/guzzle": "^7.5",
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.13",
         "orchestra/testbench": "^8.0 || ^9.0 || ^10.0 || ^11.0",
         "phpunit/phpunit": "^10.5 || ^11.0"
     },
@@ -46,7 +48,10 @@
         }
     },
     "scripts": {
-        "test": "vendor/bin/phpunit"
+        "test": "vendor/bin/phpunit",
+        "analyse": "vendor/bin/phpstan analyse --memory-limit=1G",
+        "format": "vendor/bin/pint",
+        "lint": "vendor/bin/pint --test"
     },
     "config": {
         "sort-packages": true

@@ -2,11 +2,13 @@
 
 namespace Cabuz\SafeMode\Tests;
 
+use Cabuz\SafeMode\Exceptions\OutboundBlockedException;
 use Cabuz\SafeMode\Exceptions\WriteBlockedException;
 use Cabuz\SafeMode\Support\SafeMode;
 use Cabuz\SafeMode\Tests\Fixtures\User;
 use Illuminate\Database\Query\Processors\PostgresProcessor;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 
 class SafeModeTest extends TestCase
 {
@@ -86,6 +88,33 @@ class SafeModeTest extends TestCase
         DB::statement('with target as (select id from users) update users set is_premium = 1 where id in (select id from target)');
     }
 
+    public function test_writes_behind_a_leading_comment_are_blocked(): void
+    {
+        $this->seedUser();
+
+        $this->expectException(WriteBlockedException::class);
+
+        DB::statement('/* nightly job */ update users set is_premium = 1');
+    }
+
+    public function test_a_write_chained_after_a_read_is_blocked(): void
+    {
+        $this->seedUser();
+
+        $this->expectException(WriteBlockedException::class);
+
+        DB::unprepared('select 1; delete from users');
+    }
+
+    public function test_a_write_chained_after_an_infrastructure_write_is_blocked(): void
+    {
+        $this->seedUser();
+
+        $this->expectException(WriteBlockedException::class);
+
+        DB::unprepared("insert into migrations (migration, batch) values ('x', 99); delete from users");
+    }
+
     public function test_read_only_ctes_are_allowed(): void
     {
         $this->seedUser();
@@ -128,10 +157,33 @@ class SafeModeTest extends TestCase
         // otherwise migrations and the queue worker would break.
         DB::table('migrations')->insert(['migration' => 'x', 'batch' => 99]);
 
-        $this->assertSame(
-            'x',
-            DB::table('migrations')->where('batch', 99)->value('migration')
-        );
+        try {
+            $this->assertSame(
+                'x',
+                DB::table('migrations')->where('batch', 99)->value('migration')
+            );
+        } finally {
+            // Leave the migrations table as found, so the rollback after the
+            // test still works on a persistent database.
+            DB::table('migrations')->where('batch', 99)->delete();
+        }
+    }
+
+    /** On PostgreSQL this goes through "insert ... returning id". */
+    public function test_model_create_is_blocked(): void
+    {
+        try {
+            User::query()->create([
+                'name' => 'New Person',
+                'email' => 'new.person@gmail.com',
+            ]);
+
+            $this->fail('The insert was not blocked.');
+        } catch (WriteBlockedException) {
+            // Expected.
+        }
+
+        $this->assertSame(0, DB::table('users')->count());
     }
 
     /** Octane: a leaked write permission must not survive into the next request. */
@@ -170,9 +222,9 @@ class SafeModeTest extends TestCase
 
     public function test_outbound_http_is_blocked(): void
     {
-        $this->expectException(\Cabuz\SafeMode\Exceptions\OutboundBlockedException::class);
+        $this->expectException(OutboundBlockedException::class);
 
-        \Illuminate\Support\Facades\Http::get('https://api.stripe.com/v1/charges');
+        Http::get('https://api.stripe.com/v1/charges');
     }
 
     /** Masking: PII is hidden on read, original is never persisted. */

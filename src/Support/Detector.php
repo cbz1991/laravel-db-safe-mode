@@ -10,6 +10,9 @@ use Throwable;
  */
 class Detector
 {
+    /**
+     * @param  array<string, mixed>  $config  the safe-mode config
+     */
     public function __construct(
         protected Application $app,
         protected array $config,
@@ -44,24 +47,47 @@ class Detector
             return false;
         }
 
-        $suffix = $cfg['anonymized_suffix'] ?? '@example.com';
         $table = $cfg['table'] ?? 'users';
         $column = $cfg['column'] ?? 'email';
 
         try {
             $connection = $this->app['db']->connection($cfg['connection'] ?? null);
 
-            // A single row whose value is NOT anonymized means real data.
-            $realRow = $connection->table($table)
-                ->whereNotNull($column)
-                ->where($column, 'not like', '%'.$suffix)
-                ->limit(1)
-                ->exists();
+            // Check first rather than let the query fail: on PostgreSQL a failed
+            // query aborts the surrounding transaction (e.g. in a test suite).
+            if (! $connection->getSchemaBuilder()->hasColumn($table, $column)) {
+                return false;
+            }
 
-            return $realRow;
+            $query = $connection->table($table)->whereNotNull($column);
+
+            // A single row whose value is NOT anonymized means real data.
+            foreach ($this->anonymizedSuffixes($cfg) as $suffix) {
+                $query->where($column, 'not like', '%'.$suffix);
+            }
+
+            return $query->limit(1)->exists();
         } catch (Throwable) {
             // No DB, missing table, etc. — don't guess, don't crash boot.
             return false;
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $cfg  the detect_real_data config
+     * @return list<string>
+     */
+    protected function anonymizedSuffixes(array $cfg): array
+    {
+        $domains = (array) ($cfg['anonymized_domains'] ?? ['example.com', 'example.org', 'example.net']);
+
+        $suffixes = array_map(fn ($domain) => '@'.ltrim((string) $domain, '@'), $domains);
+
+        // Configs published before 1.2.3 only have a single suffix.
+        if (isset($cfg['anonymized_suffix'])) {
+            $suffixes[] = (string) $cfg['anonymized_suffix'];
+        }
+
+        return array_values(array_unique($suffixes));
     }
 }

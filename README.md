@@ -50,9 +50,11 @@ notifications and stray HTTP calls are blocked. The queue worker refuses to
 process jobs.
 
 **2. You import a production dump locally and forget it's real.**
-On boot the package peeks at one column (`users.email` by default). If the
-values aren't anonymized it treats the data as real, clamps down hard, and
-prints a red `REAL DATA` banner before every artisan command.
+On boot the package peeks at one column (`users.email` by default). If any
+value isn't at an anonymized domain (`example.com`, `example.org` or
+`example.net` by default, which covers Laravel's `UserFactory`) it treats the
+data as real, clamps down hard, and prints a red `REAL DATA` banner before
+every artisan command.
 
 **3. A job/cron flips a flag on a user without sending any email.**
 This is the subtle one. There's no outbound signal to catch — it's a silent

@@ -10,7 +10,7 @@ class OutboundBlockedException extends RuntimeException
     {
         return new self(
             "[safe-mode] An outbound HTTP request to [{$host}] was blocked because real/production data is in use. "
-            ."Add the host to safe-mode.outbound.http.allowed_hosts if it is safe."
+            .'Add the host to safe-mode.outbound.http.allowed_hosts if it is safe.'
         );
     }
 }

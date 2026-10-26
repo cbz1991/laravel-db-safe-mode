@@ -11,7 +11,6 @@ use Cabuz\SafeMode\Support\Detector;
 use Cabuz\SafeMode\Support\SafeMode;
 use Illuminate\Console\Events\CommandFinished;
 use Illuminate\Console\Events\CommandStarting;
-use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 

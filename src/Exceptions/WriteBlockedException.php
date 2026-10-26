@@ -12,7 +12,7 @@ class WriteBlockedException extends RuntimeException
 
         return new self(
             "[safe-mode] A database write was blocked because real/production data is in use:\n  {$preview}\n"
-            ."If this write is intentional, wrap it in SafeMode::allowWrites(fn () => ...)."
+            .'If this write is intentional, wrap it in SafeMode::allowWrites(fn () => ...).'
         );
     }
 }

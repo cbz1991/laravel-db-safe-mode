@@ -16,7 +16,7 @@ Fixes #
 - [ ] I've read [CONTRIBUTING.md](../CONTRIBUTING.md).
 - [ ] The change keeps the package fail-safe (it blocks rather than leaks when in doubt).
 - [ ] I've added tests that fail without this change.
-- [ ] `composer test` passes locally.
+- [ ] `composer test`, `composer analyse` and `composer lint` pass locally.
 - [ ] The code works on PHP 8.1+ and Laravel 10+ (no newer syntax or APIs without a guard).
 - [ ] I've added an entry under `## Unreleased` in `CHANGELOG.md`.
 - [ ] I've updated `README.md` / `config/safe-mode.php` comments if behaviour or configuration changed.

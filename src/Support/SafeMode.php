@@ -51,6 +51,7 @@ class SafeMode
      * wrap writes you actually mean to perform while the guard is on.
      *
      * @template TReturn
+     *
      * @param  Closure():TReturn  $callback
      * @return TReturn
      */

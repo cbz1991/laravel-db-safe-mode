@@ -4,7 +4,9 @@ namespace Cabuz\SafeMode\Commands;
 
 use Cabuz\SafeMode\Masking\Maskers;
 use Cabuz\SafeMode\Support\SafeMode;
+use Closure;
 use Illuminate\Console\Command;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -70,7 +72,10 @@ class AnonymizeCommand extends Command
         return self::SUCCESS;
     }
 
-    protected function anonymizeTable($connection, string $table, array $columns, Maskers $maskers): void
+    /**
+     * @param  array<string, string|Closure>  $columns  column => masker
+     */
+    protected function anonymizeTable(Connection $connection, string $table, array $columns, Maskers $maskers): void
     {
         $key = $this->primaryKey($connection, $table);
         $chunk = max(1, (int) $this->option('chunk'));
@@ -81,9 +86,14 @@ class AnonymizeCommand extends Command
                 $updates = [];
 
                 // Build a lightweight object so key-aware maskers work.
-                $pseudo = new class($row->{$key}) {
-                    public function __construct(private $k) {}
-                    public function getKey() { return $this->k; }
+                $pseudo = new class($row->{$key})
+                {
+                    public function __construct(private mixed $key) {}
+
+                    public function getKey(): mixed
+                    {
+                        return $this->key;
+                    }
                 };
 
                 foreach ($columns as $column => $masker) {
@@ -104,7 +114,7 @@ class AnonymizeCommand extends Command
         $this->components->info("  {$table}: {$count} rows anonymized");
     }
 
-    protected function primaryKey($connection, string $table): string
+    protected function primaryKey(Connection $connection, string $table): string
     {
         foreach (['id', 'uuid', 'ulid'] as $candidate) {
             if ($connection->getSchemaBuilder()->hasColumn($table, $candidate)) {

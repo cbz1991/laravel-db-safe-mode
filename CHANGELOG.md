@@ -4,6 +4,29 @@ All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
 ## Unreleased
 
+## 1.2.3 - 2026-10-26
+
+- Fix: the package crashed with a PHP fatal error on MySQL and MariaDB with
+  Laravel 11+ (`GuardsWrites::insert()` was incompatible with
+  `MySqlConnection::insert()`, which gained a `$sequence` parameter). Writes
+  are now guarded only in `Connection::run()`, so no driver-specific method is
+  overridden any more.
+- Fix: writes behind a leading SQL comment (`/* job */ update ...`) and writes
+  chained after another statement in one call (`select 1; delete from users`)
+  are now blocked.
+- Fix: real-data detection no longer aborts the surrounding transaction on
+  PostgreSQL when the configured table doesn't exist.
+- Real-data detection now treats `example.com`, `example.org` and
+  `example.net` as anonymized (Faker's `safeEmail()`, used by Laravel's
+  `UserFactory`), so seeded databases are no longer flagged as real. New
+  `detect_real_data.anonymized_domains` option; the old `anonymized_suffix`
+  setting is still honoured.
+- Show `composer require --dev` on Packagist.
+- CI: run the test suite against MySQL, MariaDB and PostgreSQL, and add
+  PHPStan (Larastan, level 6) and Pint checks.
+- Tests for the queue and scheduler halt, the `safe-mode:anonymize` and
+  `safe-mode:status` commands, and real-data detection.
+
 ## 1.2.2 - 2026-10-26
 
 - Fix: on PostgreSQL, `Model::create()` / `insertGetId()` were not blocked,

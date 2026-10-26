@@ -23,7 +23,7 @@ trait GuardsWrites
         return app(SafeMode::class);
     }
 
-    protected function guardWrite(string $query): void
+    protected function guardWrite(string $query, bool $allowInfrastructureTables = true): void
     {
         $guard = $this->safeMode();
 
@@ -31,7 +31,7 @@ trait GuardsWrites
             return;
         }
 
-        if ($this->targetsAllowedTable($query)) {
+        if ($allowInfrastructureTables && $this->targetsAllowedTable($query)) {
             return;
         }
 
@@ -76,21 +76,30 @@ trait GuardsWrites
     }
 
     /**
-     * For queries that aren't known to be writes we only block data-mutating
-     * SQL. Reads, schema changes (migrations), transaction control and
-     * session/pragma statements must pass through untouched.
+     * Only data-mutating SQL is blocked. Reads, schema changes (migrations),
+     * transaction control and session/pragma statements pass through.
      */
     protected function guardDmlStatement(string $query): void
     {
-        if ($this->isDataModifyingQuery($query)) {
+        $sql = strtolower((string) preg_replace('/^(?:\s+|\/\*.*?\*\/|--[^\n]*)*/s', '', $query));
+
+        // Several statements in one call ("select 1; delete from users"): a
+        // write anywhere counts, and the infrastructure-table allowlist doesn't
+        // apply, since it only looks at the first statement.
+        if (preg_match('/;\s*(?:\/\*.*?\*\/\s*)*(?:insert|update|delete|replace|merge|truncate|upsert)\b/s', $sql)) {
+            $this->guardWrite($query, allowInfrastructureTables: false);
+
+            return;
+        }
+
+        if ($this->isDataModifyingQuery($sql)) {
             $this->guardWrite($query);
         }
     }
 
-    protected function isDataModifyingQuery(string $query): bool
+    /** Expects lower-cased SQL with leading comments stripped. */
+    protected function isDataModifyingQuery(string $sql): bool
     {
-        $sql = strtolower(ltrim($query));
-
         foreach (['insert', 'update', 'delete', 'replace', 'merge', 'truncate', 'upsert'] as $dml) {
             if (str_starts_with($sql, $dml)) {
                 return true;
@@ -110,39 +119,17 @@ trait GuardsWrites
 
     /**
      * Every query, whichever public method sent it, is executed through run().
+     * Guarding here rather than in insert()/update()/... also avoids
+     * overriding methods whose signatures differ per driver and Laravel
+     * version (MySqlConnection::insert() gained a $sequence parameter in 11).
+     *
+     * @param  string  $query
+     * @param  array<array-key, mixed>  $bindings
      */
     protected function run($query, $bindings, Closure $callback)
     {
         $this->guardDmlStatement($query);
 
         return parent::run($query, $bindings, $callback);
-    }
-
-    public function insert($query, $bindings = [])
-    {
-        $this->guardWrite($query);
-
-        return parent::insert($query, $bindings);
-    }
-
-    public function update($query, $bindings = [])
-    {
-        $this->guardWrite($query);
-
-        return parent::update($query, $bindings);
-    }
-
-    public function delete($query, $bindings = [])
-    {
-        $this->guardWrite($query);
-
-        return parent::delete($query, $bindings);
-    }
-
-    public function affectingStatement($query, $bindings = [])
-    {
-        $this->guardWrite($query);
-
-        return parent::affectingStatement($query, $bindings);
     }
 }

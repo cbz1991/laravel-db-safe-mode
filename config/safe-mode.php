@@ -45,8 +45,9 @@ return [
         'connection' => null, // null = default connection
         'table' => 'users',
         'column' => 'email',
-        // A row counts as "real" when the value does NOT end with this.
-        'anonymized_suffix' => '@example.com',
+        // A row counts as "real" when the value is not at one of these domains.
+        // The defaults cover Faker's safeEmail(), which Laravel's UserFactory uses.
+        'anonymized_domains' => ['example.com', 'example.org', 'example.net'],
     ],
 
     /*

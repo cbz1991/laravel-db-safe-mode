@@ -31,17 +31,34 @@ This package exists to stop accidents on real data. Every change must keep it
 
 ## Development setup
 
-Requirements: PHP 8.1+ and Composer.
+Requirements: PHP 8.3+ and Composer for the full toolchain (the package itself
+supports PHP 8.1+).
 
 ```bash
 git clone https://github.com/<your-username>/laravel-db-safe-mode.git
 cd laravel-db-safe-mode
 composer install
-composer test
+composer test      # PHPUnit
+composer analyse   # PHPStan (Larastan), level 6
+composer lint      # check code style with Pint
+composer format    # fix code style with Pint
 ```
 
 Tests run on [Orchestra Testbench](https://github.com/orchestral/testbench) with
 an in-memory SQLite database, so you don't need a database server.
+
+The write guard behaves differently per database driver, so CI also runs the
+suite against MySQL, MariaDB and PostgreSQL. To do the same locally, point the
+tests at a server through environment variables:
+
+```bash
+DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 \
+DB_DATABASE=safe_mode DB_USERNAME=postgres DB_PASSWORD=password \
+composer test
+```
+
+`DB_CONNECTION` can be `mysql`, `mariadb` or `pgsql`. Each test runs in a
+transaction that is rolled back, so the database is left as it was.
 
 ## Supported versions
 
@@ -74,7 +91,10 @@ Concretely, this means:
 
 ## Coding guidelines
 
-- Follow PSR-12 and the existing Laravel-style formatting of the codebase.
+- Code style is enforced by [Pint](https://laravel.com/docs/pint) with the
+  Laravel preset; run `composer format` before committing.
+- Code must pass PHPStan (Larastan) at level 6. Fix the underlying type issue
+  rather than adding ignores or baseline entries.
 - Match the surrounding code: naming, comment density and structure.
 - Keep each guard self-contained and independently toggleable through
   `config/safe-mode.php`. Any new option needs a sensible, safe default and an
@@ -97,7 +117,8 @@ Concretely, this means:
 1. Fork the repository and create a branch from `main`
    (e.g. `fix/notification-channel-check`, `feature/sms-guard`).
 2. Make your change, with tests.
-3. Run `composer test` and make sure everything passes.
+3. Run `composer test`, `composer analyse` and `composer lint`, and make sure
+   everything passes (`composer format` fixes style issues).
 4. Add a line under an `## Unreleased` heading at the top of
    [`CHANGELOG.md`](CHANGELOG.md) describing the change from a user's point of
    view.
