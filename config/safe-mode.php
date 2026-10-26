@@ -100,7 +100,10 @@ return [
     */
 
     'outbound' => [
-        // Redirect all mail to a single dev inbox (null = force the "log" mailer).
+        // Redirect all mail, on every mailer, to a single dev inbox. Cc and Bcc
+        // are dropped; the original recipients are kept in the
+        // X-Safe-Mode-Original-Recipients header. null = don't send at all,
+        // just log the recipients and subject.
         'mail' => [
             'block' => true,
             'redirect_to' => env('SAFE_MODE_MAIL_TO', null),

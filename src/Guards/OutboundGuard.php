@@ -8,9 +8,11 @@ use Illuminate\Console\Events\ScheduledTaskStarting;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Http\Client\Factory as HttpFactory;
-use Illuminate\Mail\Mailer;
+use Illuminate\Mail\Events\MessageSending;
 use Illuminate\Notifications\Events\NotificationSending;
 use Illuminate\Queue\Events\Looping;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Email;
 
 /**
  * Stops every side effect that could reach the outside world while real data
@@ -59,32 +61,50 @@ class OutboundGuard
         });
     }
 
+    /**
+     * MessageSending fires for every mailer, right before the transport sends,
+     * so this covers Mail::mailer('ses') and friends, not just the default.
+     */
     protected function guardMail(): void
     {
         $redirectTo = data_get($this->config, 'mail.redirect_to');
 
-        $this->app->resolving('mail.manager', function () use ($redirectTo) {
-            // Resolve lazily so we don't force the mailer to boot early.
-        });
+        /** @var Dispatcher $events */
+        $events = $this->app['events'];
 
-        $this->app->booted(function () use ($redirectTo) {
-            if (! $this->app->bound('mailer')) {
-                return;
+        $events->listen(MessageSending::class, function (MessageSending $event) use ($redirectTo) {
+            $message = $event->message;
+
+            if (! $message instanceof Email) {
+                return false;
             }
 
-            $mailer = $this->app->make('mailer');
+            $recipients = array_map(
+                fn (Address $address) => $address->getAddress(),
+                [...$message->getTo(), ...$message->getCc(), ...$message->getBcc()]
+            );
 
-            if ($mailer instanceof Mailer) {
-                if ($redirectTo) {
-                    // Every message, whatever its To/Cc/Bcc, lands in one inbox.
-                    $mailer->alwaysTo($redirectTo);
-                    $mailer->alwaysCc([]);
-                    $mailer->alwaysBcc([]);
-                } else {
-                    // No inbox given: force transport to "log" so nothing is sent.
-                    config(['mail.default' => 'log']);
-                }
+            if (! $redirectTo) {
+                $this->app['log']->info('[safe-mode] Blocked an outgoing email.', [
+                    'recipients' => $recipients,
+                    'subject' => $message->getSubject(),
+                ]);
+
+                // Returning false from an `until` listener cancels the send.
+                return false;
             }
+
+            // Every message, whatever its To/Cc/Bcc, lands in one inbox.
+            $headers = $message->getHeaders();
+            $headers->remove('Cc');
+            $headers->remove('Bcc');
+            $headers->remove('X-Safe-Mode-Original-Recipients');
+            $headers->addTextHeader('X-Safe-Mode-Original-Recipients', implode(', ', $recipients));
+
+            $message->to($redirectTo);
+
+            // Return nothing, so the application's own listeners still run.
+            return null;
         });
     }
 
@@ -95,9 +115,11 @@ class OutboundGuard
         /** @var Dispatcher $events */
         $events = $this->app['events'];
 
-        // Returning false from an `until` listener halts the send for that channel.
+        // Returning false from an `until` listener halts the send for that
+        // channel. Allowed channels must return null, not true: any non-null
+        // response stops the remaining listeners from running.
         $events->listen(NotificationSending::class, function (NotificationSending $event) use ($allowed) {
-            return in_array($event->channel, $allowed, true);
+            return in_array($event->channel, $allowed, true) ? null : false;
         });
     }
 

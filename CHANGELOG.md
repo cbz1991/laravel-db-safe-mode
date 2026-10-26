@@ -4,6 +4,20 @@ All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
 ## Unreleased
 
+- Fix: on PostgreSQL, `Model::create()` / `insertGetId()` were not blocked,
+  because Laravel runs them as `insert ... returning id` through
+  `selectFromWriteConnection()`. Every query is now checked, whichever
+  connection method sends it, including data-modifying CTEs
+  (`with ... update ...`).
+- Fix: setting `SAFE_MODE_MAIL_TO` crashed the app on boot
+  (`Mailer::alwaysCc()` doesn't exist). Mail is now guarded through the
+  `MessageSending` event, which also covers non-default mailers
+  (`Mail::mailer('ses')`). Redirected mail drops Cc/Bcc and keeps the original
+  recipients in an `X-Safe-Mode-Original-Recipients` header; without a
+  redirect address the email is not sent and its recipients and subject are
+  logged.
+- Fix: the notification guard returned `true` for allowed channels, which
+  stopped the application's own `NotificationSending` listeners from running.
 - Add contributing guide, security policy, code of conduct, and issue / pull
   request templates.
 - Suggest `guzzlehttp/guzzle` in `composer.json` (needed for the HTTP guard on

@@ -5,6 +5,7 @@ namespace Cabuz\SafeMode\Tests;
 use Cabuz\SafeMode\Exceptions\WriteBlockedException;
 use Cabuz\SafeMode\Support\SafeMode;
 use Cabuz\SafeMode\Tests\Fixtures\User;
+use Illuminate\Database\Query\Processors\PostgresProcessor;
 use Illuminate\Support\Facades\DB;
 
 class SafeModeTest extends TestCase
@@ -41,6 +42,57 @@ class SafeModeTest extends TestCase
         // This is exactly the forgotten-job scenario: change a flag.
         $user->is_premium = true;
         $user->save();
+    }
+
+    /**
+     * PostgreSQL runs insertGetId() as "insert ... returning id" through
+     * selectFromWriteConnection(), not insert(). Simulate that path by giving
+     * the SQLite connection the Postgres post-processor.
+     */
+    public function test_model_create_through_the_postgres_insert_path_is_blocked(): void
+    {
+        DB::connection()->setPostProcessor(new PostgresProcessor);
+
+        try {
+            User::query()->create([
+                'name' => 'New Person',
+                'email' => 'new.person@gmail.com',
+            ]);
+
+            $this->fail('The insert was not blocked.');
+        } catch (WriteBlockedException) {
+            // Expected.
+        }
+
+        $this->assertSame(0, DB::table('users')->count());
+    }
+
+    public function test_writes_disguised_as_selects_are_blocked(): void
+    {
+        $this->expectException(WriteBlockedException::class);
+
+        DB::selectFromWriteConnection(
+            'insert into users (name, email) values (?, ?) returning id',
+            ['New Person', 'new.person@gmail.com']
+        );
+    }
+
+    public function test_data_modifying_ctes_are_blocked(): void
+    {
+        $this->seedUser();
+
+        $this->expectException(WriteBlockedException::class);
+
+        DB::statement('with target as (select id from users) update users set is_premium = 1 where id in (select id from target)');
+    }
+
+    public function test_read_only_ctes_are_allowed(): void
+    {
+        $this->seedUser();
+
+        $rows = DB::select('with target as (select id from users) select count(*) as total from target');
+
+        $this->assertSame(1, (int) $rows[0]->total);
     }
 
     public function test_raw_dml_is_blocked_but_select_is_allowed(): void

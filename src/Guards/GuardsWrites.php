@@ -4,12 +4,15 @@ namespace Cabuz\SafeMode\Guards;
 
 use Cabuz\SafeMode\Exceptions\WriteBlockedException;
 use Cabuz\SafeMode\Support\SafeMode;
+use Closure;
 
 /**
- * Overrides every write entry point on a database Connection so that, while
+ * Overrides the write entry points on a database Connection so that, while
  * the guard is engaged, any mutation throws unless explicitly allowed.
  *
- * Reads (select) are untouched. Intentional writes go through
+ * Reads pass through. Every query is also checked in run(), so a write sent
+ * through a read method (e.g. PostgreSQL's "insert ... returning id" via
+ * selectFromWriteConnection()) is caught too. Intentional writes go through
  * SafeMode::allowWrites(). This is the piece that stops a forgotten job or
  * cron from flipping a flag on a real user.
  */
@@ -73,21 +76,46 @@ trait GuardsWrites
     }
 
     /**
-     * For the generic statement()/unprepared() entry points we only block
-     * data-mutating SQL. Schema changes (migrations), transaction control and
+     * For queries that aren't known to be writes we only block data-mutating
+     * SQL. Reads, schema changes (migrations), transaction control and
      * session/pragma statements must pass through untouched.
      */
     protected function guardDmlStatement(string $query): void
     {
-        $verb = strtolower(ltrim($query));
+        if ($this->isDataModifyingQuery($query)) {
+            $this->guardWrite($query);
+        }
+    }
+
+    protected function isDataModifyingQuery(string $query): bool
+    {
+        $sql = strtolower(ltrim($query));
 
         foreach (['insert', 'update', 'delete', 'replace', 'merge', 'truncate', 'upsert'] as $dml) {
-            if (str_starts_with($verb, $dml)) {
-                $this->guardWrite($query);
-
-                return;
+            if (str_starts_with($sql, $dml)) {
+                return true;
             }
         }
+
+        // A CTE can wrap a write: "with x as (...) update ...". Row locks
+        // ("for update") are reads and must not count.
+        if (str_starts_with($sql, 'with')) {
+            $sql = preg_replace('/\bfor\s+(?:no\s+key\s+)?update\b/', '', $sql);
+
+            return (bool) preg_match('/\b(?:insert\s+into|update\s+[`"\[]?\w|delete\s+from|merge\s+into)/', $sql);
+        }
+
+        return false;
+    }
+
+    /**
+     * Every query, whichever public method sent it, is executed through run().
+     */
+    protected function run($query, $bindings, Closure $callback)
+    {
+        $this->guardDmlStatement($query);
+
+        return parent::run($query, $bindings, $callback);
     }
 
     public function insert($query, $bindings = [])
@@ -111,24 +139,10 @@ trait GuardsWrites
         return parent::delete($query, $bindings);
     }
 
-    public function statement($query, $bindings = [])
-    {
-        $this->guardDmlStatement($query);
-
-        return parent::statement($query, $bindings);
-    }
-
     public function affectingStatement($query, $bindings = [])
     {
         $this->guardWrite($query);
 
         return parent::affectingStatement($query, $bindings);
-    }
-
-    public function unprepared($query)
-    {
-        $this->guardDmlStatement($query);
-
-        return parent::unprepared($query);
     }
 }
