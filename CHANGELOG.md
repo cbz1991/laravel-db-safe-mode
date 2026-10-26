@@ -2,6 +2,14 @@
 
 All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
+## 1.1.0 - 2026-10-26
+
+- Octane & long-lived worker support: reset the transient write-permission
+  state at the start of every Octane request, task and tick so it cannot leak
+  between units of work. Registered by event name, so `laravel/octane` is not
+  required.
+- Add `SafeMode::reset()`.
+
 ## 1.0.1 - 2026-10-26
 
 - Drop `minimum-stability: dev` now that a stable release is tagged; the

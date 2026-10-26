@@ -80,4 +80,16 @@ class SafeMode
     {
         return $this->writesAllowed > 0;
     }
+
+    /**
+     * Reset the transient per-request state. Called between requests, tasks
+     * and ticks on long-lived runtimes (Octane) so a write permission can
+     * never leak from one unit of work into the next. The environment-derived
+     * state (active, reason, real-data) is intentionally preserved: it does
+     * not change between requests within the same worker process.
+     */
+    public function reset(): void
+    {
+        $this->writesAllowed = 0;
+    }
 }

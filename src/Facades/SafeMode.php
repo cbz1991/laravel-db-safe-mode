@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static void markRealData()
  * @method static mixed allowWrites(\Closure $callback)
  * @method static bool writesAreAllowed()
+ * @method static void reset()
  *
  * @see \Cabuz\SafeMode\Support\SafeMode
  */
