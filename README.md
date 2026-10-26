@@ -71,9 +71,18 @@ detected, **debug** otherwise. Every row of the table can be changed per mode
 in `config/safe-mode.php`.
 
 Real data is detected on boot by peeking at one column (`users.email` by
-default): if any value isn't at an anonymized domain (`example.com`,
-`example.org` or `example.net`, which covers Laravel's `UserFactory`), the data
-is treated as real and a red banner is printed before every artisan command.
+default). Values at an anonymized domain (`example.com`, `example.org` or
+`example.net`, which covers Laravel's `UserFactory`) don't count, and neither
+do your own developer accounts:
+
+```env
+SAFE_MODE_IGNORE_EMAILS=me@gmail.com,me@company.com   # SAFE_MODE_MAIL_TO is ignored too
+```
+
+Once at least 10 real addresses are found (`detect_real_data.min_real_emails`),
+the data is treated as real and a red banner is printed before every artisan
+command. A production clone has far more than that, while a local database
+with a couple of your own accounts stays in debug mode.
 
 > **Careful:** `debug` allows writes on whatever database you're connected to.
 > Don't leave it on when you connect to the live production database — the

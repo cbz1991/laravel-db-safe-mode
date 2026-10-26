@@ -82,6 +82,15 @@ return [
         // A row counts as "real" when the value is not at one of these domains.
         // The defaults cover Faker's safeEmail(), which Laravel's UserFactory uses.
         'anonymized_domains' => ['example.com', 'example.org', 'example.net'],
+
+        // Your own accounts on your local database don't count as real data.
+        // Comma-separated in .env. SAFE_MODE_MAIL_TO is always ignored too.
+        'ignore_emails' => array_filter(explode(',', (string) env('SAFE_MODE_IGNORE_EMAILS', ''))),
+
+        // The data counts as real once at least this many real values are found,
+        // so a few developer accounts don't switch on strict mode. A production
+        // clone has far more than this.
+        'min_real_emails' => 10,
     ],
 
     /*

@@ -114,16 +114,50 @@ class Detector
 
             $query = $connection->table($table)->whereNotNull($column);
 
-            // A single row whose value is NOT anonymized means real data.
+            // Only values that are NOT anonymized count as real...
             foreach ($this->anonymizedSuffixes($cfg) as $suffix) {
                 $query->where($column, 'not like', '%'.$suffix);
             }
 
-            return $query->limit(1)->exists();
+            // ...and that aren't the developer's own accounts.
+            $ignored = $this->ignoredEmails($cfg);
+            if ($ignored !== []) {
+                $query->whereNotIn($connection->raw("lower({$connection->getQueryGrammar()->wrap($column)})"), $ignored);
+            }
+
+            // Fetch at most `min` rows rather than counting the whole table.
+            $min = $this->minRealEmails($cfg);
+
+            return $query->limit($min)->pluck($column)->count() >= $min;
         } catch (Throwable) {
             // No DB, missing table, etc. — don't guess, don't crash boot.
             return false;
         }
+    }
+
+    /**
+     * Configured developer addresses, plus the mail redirect address, which is
+     * the developer's own inbox. Lower-cased for a case-insensitive match.
+     *
+     * @param  array<string, mixed>  $cfg  the detect_real_data config
+     * @return list<string>
+     */
+    protected function ignoredEmails(array $cfg): array
+    {
+        $emails = (array) ($cfg['ignore_emails'] ?? []);
+        $emails[] = $this->config['outbound']['mail']['redirect_to'] ?? null;
+
+        $emails = array_map(fn ($email) => strtolower(trim((string) $email)), $emails);
+
+        return array_values(array_unique(array_filter($emails, fn ($email) => $email !== '')));
+    }
+
+    /**
+     * @param  array<string, mixed>  $cfg  the detect_real_data config
+     */
+    protected function minRealEmails(array $cfg): int
+    {
+        return max(1, (int) ($cfg['min_real_emails'] ?? 10));
     }
 
     /**

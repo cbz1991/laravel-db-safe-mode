@@ -23,16 +23,76 @@ class DetectorTest extends TestCase
         $this->assertFalse($this->detector()->hasRealData());
     }
 
-    public function test_a_single_real_email_is_real_data(): void
+    public function test_a_single_real_email_is_real_data_with_a_threshold_of_one(): void
     {
+        config(['safe-mode.detect_real_data.min_real_emails' => 1]);
+
         $this->insertUsers('a@example.com', 'real.person@gmail.com');
 
         $this->assertTrue($this->detector()->hasRealData());
     }
 
+    public function test_by_default_a_few_developer_accounts_are_not_real_data(): void
+    {
+        $this->insertUsers(...$this->realEmails(9));
+
+        $this->assertFalse($this->detector()->hasRealData());
+    }
+
+    public function test_by_default_ten_real_emails_are_real_data(): void
+    {
+        $this->insertUsers(...$this->realEmails(10));
+
+        $this->assertTrue($this->detector()->hasRealData());
+    }
+
+    public function test_a_threshold_below_one_counts_as_one(): void
+    {
+        config(['safe-mode.detect_real_data.min_real_emails' => 0]);
+
+        $this->insertUsers('real.person@gmail.com');
+
+        $this->assertTrue($this->detector()->hasRealData());
+    }
+
+    public function test_ignored_emails_do_not_count(): void
+    {
+        config([
+            'safe-mode.detect_real_data.min_real_emails' => 1,
+            'safe-mode.detect_real_data.ignore_emails' => [' Florin.Dev@Gmail.com '],
+        ]);
+
+        $this->insertUsers('florin.dev@gmail.com');
+        $this->assertFalse($this->detector()->hasRealData());
+
+        $this->insertUsers('real.person@gmail.com');
+        $this->assertTrue($this->detector()->hasRealData());
+    }
+
+    public function test_the_mail_redirect_address_is_ignored(): void
+    {
+        config([
+            'safe-mode.detect_real_data.min_real_emails' => 1,
+            'safe-mode.outbound.mail.redirect_to' => 'florin.dev@gmail.com',
+        ]);
+
+        $this->insertUsers('florin.dev@gmail.com');
+
+        $this->assertFalse($this->detector()->hasRealData());
+    }
+
+    /** @return list<string> */
+    protected function realEmails(int $count): array
+    {
+        return array_map(fn (int $i) => "real.person{$i}@gmail.com", range(1, $count));
+    }
+
     public function test_custom_anonymized_domains(): void
     {
-        config(['safe-mode.detect_real_data.anonymized_domains' => ['acme.test']]);
+        config([
+            'safe-mode.detect_real_data.anonymized_domains' => ['acme.test'],
+            'safe-mode.detect_real_data.min_real_emails' => 1,
+        ]);
 
         $this->insertUsers('a@acme.test');
         $this->assertFalse($this->detector()->hasRealData());

@@ -4,6 +4,15 @@ All notable changes to `laravel-db-safe-mode` will be documented in this file.
 
 ## Unreleased
 
+## 1.3.1 - 2026-10-26
+
+- Real-data detection no longer treats a local database with your own
+  developer account as production data. New `detect_real_data.ignore_emails`
+  option (`SAFE_MODE_IGNORE_EMAILS`, comma-separated); the `SAFE_MODE_MAIL_TO`
+  address is always ignored. Matching is case-insensitive.
+- New `detect_real_data.min_real_emails` option (default 10): the data only
+  counts as real once at least this many real addresses are found.
+
 ## 1.3.0 - 2026-10-26
 
 - New: `strict` and `debug` modes, chosen with `SAFE_MODE` in `.env`.
